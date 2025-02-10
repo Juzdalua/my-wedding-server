@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Payment Completed</title>
+  </head>
+  <body>
+    <script>
+      // 현재 URL에서 쿼리 파라미터 추출
+      const queryString = window.location.search;
+      const urlParams = new URLSearchParams(queryString);
+
+      // 결제 성공 여부 확인
+      const success = urlParams.get('success') === 'true';
+
+      // 부모 창으로 메시지 전송
+      window.parent.postMessage({ success, message: 'Payment completed' }, '*');
+
+      // 자동으로 닫히지 않는다면 메시지를 표시
+      document.body.innerHTML = '<p>결제 처리가 완료되었습니다. 창을 닫아주세요.</p>';
+    </script>
+  </body>
+</html>
