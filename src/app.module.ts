@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LoggerMiddleware } from './utils/logger.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { UdpModule } from './udp/udp.module';
 import ormConfig from './config/ormconfig';
 
 @Module({
@@ -12,7 +13,8 @@ import ormConfig from './config/ormconfig';
       isGlobal: true
     }),
     TypeOrmModule.forRoot(ormConfig),
-    TypeOrmModule.forFeature([])
+    TypeOrmModule.forFeature([]),
+    UdpModule
   ],
   controllers: [AppController],
   providers: [AppService]
