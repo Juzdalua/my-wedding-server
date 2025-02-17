@@ -13,44 +13,38 @@ export class UdpService {
   }
 
   //////////////////////////////////////////////////
-  // Client
+  // Common
   //////////////////////////////////////////////////
-  listenForMessages() {
-    this.client.on('message', (msg, rinfo) => {
-      const ue5Host = rinfo.address;
-      const ue5Port = rinfo.port;
-      // if(ue5Host != process.env.UE5_HOST || ue5Port != Number(process.env.UE5_PORT)) return;
-
-      const headerSize = 12;
-      const headerBuffer = msg.subarray(0, headerSize);
-      const header = this.parseHeader(headerBuffer);
-      console.log(header);
-      const { size, id, seq } = header;
-
-      const jsonData = msg.subarray(headerSize).toString();
-      console.log('Json String:', jsonData);
-
-      try {
-        const jsonObject = JSON.parse(jsonData);
-        console.log('Parsed JSON:', jsonObject);
-      } catch (err) {
-        console.error('Error parsing JSON:', err);
-      }
-    });
-
-    // 수신할 포트와 호스트 설정
-    this.client.bind(1998, '127.0.0.1', () => {
-      // this.client.bind(Number(process.env.UE5_PORT), process.env.UE5_HOST, () => {
-      console.log(`✅ Success Listen UDP Server`);
-    });
-  }
-
   parseHeader(headerBuffer: Buffer) {
     return {
       size: headerBuffer.readUInt32LE(0),
       id: headerBuffer.readUInt32LE(4),
       seq: headerBuffer.readUInt32LE(8),
     };
+  }
+
+  parseFromRecvBuffer(buffer: Buffer) {
+    const headerSize = 12;
+    const headerBuffer = buffer.subarray(0, headerSize);
+    const header = this.parseHeader(headerBuffer);
+    console.log(header);
+    const { size, id, seq } = header;
+
+    const jsonData = buffer.subarray(headerSize).toString();
+    console.log('Json String:', jsonData);
+
+    try {
+      const jsonObject = JSON.parse(jsonData);
+      console.log('Parsed JSON:', jsonObject);
+
+      return {
+        header,
+        json: jsonObject,
+      };
+    } catch (err) {
+      console.error('Error parsing JSON:', err);
+      return null;
+    }
   }
 
   createHeader(id: number, seq: number, size: number): Buffer {
@@ -70,6 +64,25 @@ export class UdpService {
     const header = this.createHeader(id, seq, headerSize);
     const sendData = Buffer.concat([header, Buffer.from(jsonString, 'utf-8')]);
     return sendData;
+  }
+
+  //////////////////////////////////////////////////
+  // Client
+  //////////////////////////////////////////////////
+  listenForMessages() {
+    this.client.on('message', (msg, rinfo) => {
+      const ue5Host = rinfo.address;
+      const ue5Port = rinfo.port;
+      // if(ue5Host != process.env.UE5_HOST || ue5Port != Number(process.env.UE5_PORT)) return;
+
+      const { header, json } = this.parseFromRecvBuffer(msg);
+    });
+
+    // 수신할 포트와 호스트 설정
+    this.client.bind(1998, '127.0.0.1', () => {
+      // this.client.bind(Number(process.env.UE5_PORT), process.env.UE5_HOST, () => {
+      console.log(`✅ Success Listen UDP Server`);
+    });
   }
 
   sendMessage(id: number, seq: number, body: object) {
@@ -101,21 +114,7 @@ export class UdpService {
         `Received message: ${msg.toString()} from ${rinfo.address}:${rinfo.port}`,
       );
 
-      const headerSize = 12;
-      const headerBuffer = msg.subarray(0, headerSize);
-      const header = this.parseHeader(headerBuffer);
-      console.log(header);
-      const { size, id, seq } = header;
-
-      const jsonData = msg.subarray(headerSize).toString();
-      console.log('Json String:', jsonData);
-
-      try {
-        const jsonObject = JSON.parse(jsonData);
-        console.log('Parsed JSON:', jsonObject);
-      } catch (err) {
-        console.error('Error parsing JSON:', err);
-      }
+      const { header, json } = this.parseFromRecvBuffer(msg);
 
       this.sendResponse(rinfo.address, rinfo.port);
     });
@@ -127,7 +126,7 @@ export class UdpService {
 
   sendResponse(address: string, port: number) {
     const message = 'Hello from server!';
-    const sendData = this.createSendData(11, 11, {data: message});
+    const sendData = this.createSendData(11, 11, { data: message });
 
     this.server.send(sendData, port, address, (err) => {
       if (err) {
