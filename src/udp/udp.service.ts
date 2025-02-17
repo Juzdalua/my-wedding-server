@@ -4,12 +4,17 @@ import * as dgram from 'dgram';
 @Injectable()
 export class UdpService {
   private client: dgram.Socket;
+  private server: dgram.Socket;
   private globalSequence: number = 0;
 
   constructor() {
     this.client = dgram.createSocket('udp4');
+    this.server = dgram.createSocket('udp4');
   }
 
+  //////////////////////////////////////////////////
+  // Client
+  //////////////////////////////////////////////////
   listenForMessages() {
     this.client.on('message', (msg, rinfo) => {
       const ue5Host = rinfo.address;
@@ -44,7 +49,7 @@ export class UdpService {
     return {
       size: headerBuffer.readUInt32LE(0),
       id: headerBuffer.readUInt32LE(4),
-      seq: headerBuffer.readUInt32LE(8)
+      seq: headerBuffer.readUInt32LE(8),
     };
   }
 
@@ -85,5 +90,51 @@ export class UdpService {
 
   closeClient() {
     this.client.close();
+  }
+
+  //////////////////////////////////////////////////
+  // Server
+  //////////////////////////////////////////////////
+  startServer(host: string, port: number) {
+    this.server.on('message', (msg, rinfo) => {
+      console.log(
+        `Received message: ${msg.toString()} from ${rinfo.address}:${rinfo.port}`,
+      );
+
+      const headerSize = 12;
+      const headerBuffer = msg.subarray(0, headerSize);
+      const header = this.parseHeader(headerBuffer);
+      console.log(header);
+      const { size, id, seq } = header;
+
+      const jsonData = msg.subarray(headerSize).toString();
+      console.log('Json String:', jsonData);
+
+      try {
+        const jsonObject = JSON.parse(jsonData);
+        console.log('Parsed JSON:', jsonObject);
+      } catch (err) {
+        console.error('Error parsing JSON:', err);
+      }
+
+      this.sendResponse(rinfo.address, rinfo.port);
+    });
+
+    this.server.bind(port, host, () => {
+      console.log(`✅ Connect UDP Server. listening on ${host}:${port}`);
+    });
+  }
+
+  sendResponse(address: string, port: number) {
+    const message = 'Hello from server!';
+    const sendData = this.createSendData(11, 11, {data: message});
+
+    this.server.send(sendData, port, address, (err) => {
+      if (err) {
+        console.error('Error sending response:', err);
+      } else {
+        console.log('Response sent!');
+      }
+    });
   }
 }

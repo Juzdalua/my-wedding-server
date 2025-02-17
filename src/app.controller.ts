@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { AppService } from './app.service';
+import { CdtDto } from './dto/cdt.dto';
 
 @Controller()
 export class AppController {
@@ -40,6 +41,16 @@ export class AppController {
       success: true,
       message: 'POST /',
       data: {}
+    };
+  }
+
+  @Post('dto')
+  async checkDtoTest(@Body() cdtDto: CdtDto) {
+    console.log(cdtDto)
+    return {
+      success: true,
+      message: 'POST /dto',
+      data: cdtDto
     };
   }
 }
