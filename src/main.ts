@@ -33,5 +33,6 @@ async function bootstrap() {
   // Global class-validator pipe
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
   await app.listen(process.env.PORT ?? 8000);
+  console.log(`✅ Application is running on: http://localhost:${process.env.PORT ?? 8000} 🚀`);
 }
 bootstrap();
