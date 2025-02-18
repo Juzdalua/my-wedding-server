@@ -29,7 +29,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Exception
-  app.useGlobalFilters(new GlobalHttpExceptionFilter());
+  // app.useGlobalFilters(new GlobalHttpExceptionFilter());
 
   // Global class-validator pipe
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));

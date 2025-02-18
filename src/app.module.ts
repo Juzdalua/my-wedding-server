@@ -6,6 +6,8 @@ import { LoggerMiddleware } from './utils/logger.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UdpModule } from './udp/udp.module';
 import ormConfig from './config/ormconfig';
+import { APP_FILTER } from '@nestjs/core';
+import { GlobalExceptionsFilter } from './exception/global-exception.filter';
 
 @Module({
   imports: [
@@ -17,7 +19,13 @@ import ormConfig from './config/ormconfig';
     UdpModule
   ],
   controllers: [AppController],
-  providers: [AppService]
+  providers: [
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionsFilter
+    },
+    AppService
+  ]
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
