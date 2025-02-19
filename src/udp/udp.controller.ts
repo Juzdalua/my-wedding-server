@@ -13,23 +13,4 @@ export class UdpController implements OnModuleInit {
     //   console.log(`❌ Listen UDP Server Error: ${error}`);
     // }
   }
-
-  // TEST with postman
-  @Post('/send-client')
-  clientSendTestMessage(@Body() body: { message: string }) {
-    this.udpService.sendMessage(1, 1001, body);
-    return {
-      success: true,
-      message: 'Success send message',
-    };
-  }
-
-  @Post('/send-server')
-  serverSendTestMessage(@Body() body: { message: string }) {
-    this.udpService.sendMessage(1, 1001, body);
-    return {
-      success: true,
-      message: 'Success send message',
-    };
-  }
 }

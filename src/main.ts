@@ -6,7 +6,8 @@ import * as dotenv from 'dotenv';
 import { webcrypto } from 'node:crypto';
 import * as path from 'path';
 import { AppModule } from './app.module';
-import { GlobalHttpExceptionFilter } from './utils/exception';
+import { SocketService } from './socket/socket.service';
+import { TcpService } from './tcp/tcp.service';
 import { UdpService } from './udp/udp.service';
 
 Object.defineProperty(globalThis, 'crypto', {
@@ -34,6 +35,16 @@ async function bootstrap() {
   // Global class-validator pipe
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
 
+  // Socket.IO 초기화
+  const httpServer = app.getHttpServer();
+  const socketService = app.get(SocketService);
+  try {
+    socketService.initializeSocket(httpServer);
+    console.log('✅ Socket.IO initialized successfully 🚀');
+  } catch (err) {
+    console.error('Error initializing Socket.IO:', err);
+  }
+
   // Start udp server
   try {
     const udpService = app.get(UdpService);
@@ -52,6 +63,13 @@ async function bootstrap() {
   //   console.log(`❌ Listen UDP Server Error: ${error}`);
   // }
 
+  // Start tcp Server
+  try {
+    const tcpService = app.get(TcpService);
+    tcpService.startServer(process.env.TCP_SERVER_HOST, Number(process.env.TCP_SERVER_PORT));
+  } catch (error) {
+    console.log(`❌ Connect TCP listening on Server ${process.env.TCP_SERVER_HOST}:${Number(process.env.TCP_SERVER_PORT)} Error: ${error}`);
+  }
 
   await app.listen(process.env.PORT ?? 8000);
   console.log(`✅ Application is running on: http://localhost:${process.env.PORT ?? 8000} 🚀`);

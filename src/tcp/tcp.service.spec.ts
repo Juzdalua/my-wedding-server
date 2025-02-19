@@ -1,15 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UdpService } from './udp.service';
+import { TcpService } from './tcp.service';
 
-describe('UdpService', () => {
-  let service: UdpService;
+describe('TcpService', () => {
+  let service: TcpService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UdpService],
+      providers: [TcpService],
     }).compile();
 
-    service = module.get<UdpService>(UdpService);
+    service = module.get<TcpService>(TcpService);
   });
 
   it('should be defined', () => {

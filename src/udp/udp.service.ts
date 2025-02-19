@@ -1,15 +1,49 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import * as dgram from 'dgram';
+import { PacketHandlerService } from '../packet-handler/packet-handler.service';
+import { HandleProtocolType } from '@/packet-handler/interface/packet-types';
 
 @Injectable()
 export class UdpService {
   private client: dgram.Socket;
   private server: dgram.Socket;
-  private globalSequence: number = 0;
+  private sendSeq: number = 1;
+  private recvSeq: number = 0;
 
-  constructor() {
+  constructor(
+    @Inject(forwardRef(() => PacketHandlerService))
+    private readonly packetHandlerService: PacketHandlerService,
+  ) {
     this.client = dgram.createSocket('udp4');
     this.server = dgram.createSocket('udp4');
+  }
+
+  //////////////////////////////////////////////////
+  // Seq
+  //////////////////////////////////////////////////
+  initSendSeq() {
+    this.sendSeq = 1;
+  }
+
+  getCurSendSeq(): number {
+    return this.sendSeq;
+  }
+
+  getNextSendSeq(): number {
+    return ++this.sendSeq;
+  }
+
+  initRecvSeq() {
+    this.recvSeq = 0;
+  }
+
+  getCurRecvSeq(): number {
+    return this.recvSeq;
+  }
+
+  setRecvSeq(seq: number): number {
+    this.recvSeq = seq;
+    return this.recvSeq;
   }
 
   //////////////////////////////////////////////////
@@ -25,17 +59,20 @@ export class UdpService {
 
   parseFromRecvBuffer(buffer: Buffer) {
     const headerSize = 12;
+    if (buffer.length <= headerSize) {
+      return;
+    }
     const headerBuffer = buffer.subarray(0, headerSize);
     const header = this.parseHeader(headerBuffer);
-    console.log(header);
+    // console.log(header);
     const { size, id, seq } = header;
 
     const jsonData = buffer.subarray(headerSize).toString();
-    console.log('Json String:', jsonData);
+    // console.log('Json String:', jsonData);
 
     try {
       const jsonObject = JSON.parse(jsonData);
-      console.log('Parsed JSON:', jsonObject);
+      // console.log('Parsed JSON:', jsonObject);
 
       return {
         header,
@@ -67,6 +104,59 @@ export class UdpService {
   }
 
   //////////////////////////////////////////////////
+  // Server
+  //////////////////////////////////////////////////
+  startServer(host: string, port: number) {
+    this.server.on('message', (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+      console.log(
+        `Received message: ${msg.toString()} from ${rinfo.address}:${rinfo.port}`,
+      );
+
+      const { header, json } = this.parseFromRecvBuffer(msg);
+      this.packetHandlerService.handlePacket(
+        HandleProtocolType.UDP,
+        header.id,
+        {
+          header,
+          json,
+          rinfo,
+        },
+      );
+
+      // Test Echo message
+      // this.sendServerResponse(
+      //   rinfo.address,
+      //   rinfo.port,
+      //   header.id,
+      //   header.seq,
+      //   {
+      //     message: 'Hello from server!',
+      //   },
+      // );
+    });
+
+    this.server.bind(port, host, () => {
+      console.log(`✅ Connect UDP Server. listening on ${host}:${port}`);
+    });
+  }
+
+  sendServerResponse(address: string, port: number, id: number, data: object) {
+    try {
+      const sendData = this.createSendData(id, this.getNextSendSeq(), data);
+
+      this.server.send(sendData, port, address, (err) => {
+        if (err) {
+          console.error('Error sending response:', err);
+        } else {
+          console.log('Response sent!');
+        }
+      });
+    } catch (error) {
+      console.log(`UDP Send Error: ${error}`);
+    }
+  }
+
+  //////////////////////////////////////////////////
   // Client
   //////////////////////////////////////////////////
   listenForMessages() {
@@ -85,7 +175,7 @@ export class UdpService {
     });
   }
 
-  sendMessage(id: number, seq: number, body: object) {
+  sendClientMessage(id: number, seq: number, body: object) {
     const sendData = this.createSendData(id, seq, body);
     const serverPort = 1998;
     const serverIP = '127.0.0.1';
@@ -103,37 +193,5 @@ export class UdpService {
 
   closeClient() {
     this.client.close();
-  }
-
-  //////////////////////////////////////////////////
-  // Server
-  //////////////////////////////////////////////////
-  startServer(host: string, port: number) {
-    this.server.on('message', (msg, rinfo) => {
-      console.log(
-        `Received message: ${msg.toString()} from ${rinfo.address}:${rinfo.port}`,
-      );
-
-      const { header, json } = this.parseFromRecvBuffer(msg);
-
-      this.sendResponse(rinfo.address, rinfo.port);
-    });
-
-    this.server.bind(port, host, () => {
-      console.log(`✅ Connect UDP Server. listening on ${host}:${port}`);
-    });
-  }
-
-  sendResponse(address: string, port: number) {
-    const message = 'Hello from server!';
-    const sendData = this.createSendData(11, 11, { data: message });
-
-    this.server.send(sendData, port, address, (err) => {
-      if (err) {
-        console.error('Error sending response:', err);
-      } else {
-        console.log('Response sent!');
-      }
-    });
   }
 }
