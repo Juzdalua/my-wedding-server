@@ -8,6 +8,7 @@ import * as net from 'net';
 export class TcpService {
   private readonly logger = new Logger(TcpService.name);
   private server: net.Server;
+  private clients: Map<string, net.Socket> = new Map<string, net.Socket>();
 
   constructor(
     private readonly socketService: SocketService,
@@ -15,11 +16,24 @@ export class TcpService {
     @Inject(forwardRef(() => PacketHandlerService))
     private readonly packetHandlerService: PacketHandlerService
   ) {
-    this.server = net.createServer((socket) => {
+    this.server = net.createServer((socket: net.Socket) => {
       this.handleConnection(socket);
     });
+
+    // this.checkClientConnected();
   }
 
+  checkClientConnected() {
+    setInterval(() => {
+      for (const [clientId, client] of this.clients) {
+        if (client) {
+          console.log(client.remoteAddress, client.remotePort);
+        } else {
+          console.log('no cli');
+        }
+      }
+    }, 1000);
+  }
   //////////////////////////////////////////////////////
   // Common
   //////////////////////////////////////////////////////
@@ -80,37 +94,52 @@ export class TcpService {
   private handleConnection(socket: net.Socket): void {
     this.logger.debug(`[Client connected] ${socket.remoteAddress}:${socket.remotePort}`);
 
-    socket.on('data', async (data) => {
-      this.logger.debug(`[RECV] ${socket.remoteAddress}:${socket.remotePort}`);
-      const { header, json } = await this.parseFromRecvBuffer(socket, data);
+    const clientId = socket.remoteAddress + ':' + socket.remotePort;
+    if (!this.clients.has(clientId)) {
+      this.clients.set(clientId, socket);
+    }
 
-      this.packetHandlerService.handlePacket(HandleProtocolType.TCP, header.id, {
-        header,
-        json,
-        socket
-      });
+    socket.on('data', async (data) => {
+      try {
+        this.logger.debug(`[RECV] ${socket.remoteAddress}:${socket.remotePort}`);
+        const { header, json } = await this.parseFromRecvBuffer(socket, data);
+
+        this.packetHandlerService.handlePacket(HandleProtocolType.TCP, header.id, {
+          header,
+          json,
+          socket
+        });
+      } catch (error) {
+        console.error(`[TCP][RECV] parse error: ${error}`);
+        console.error(data.toString());
+      }
     });
 
     socket.on('end', () => {
       this.logger.debug(`Client disconnected. ${socket.remoteAddress}:${socket.remotePort}`);
+      if (this.clients.has(clientId)) {
+        this.clients.delete(clientId);
+      }
     });
 
     socket.on('error', (err) => {
-      console.error('[TCP Server] Socket error:', err.message);
       if (err.message == 'read ECONNRESET') {
         this.logger.debug(`Client disconnected. ${socket.remoteAddress}:${socket.remotePort}`);
+        if (this.clients.has(clientId)) {
+          this.clients.delete(clientId);
+        }
+      } else {
+        console.error('[TCP Server] Socket error:', err.message);
       }
     });
   }
 
-  sendToClient(id: number, jsonString: string, socket: net.Socket) {
+  sendToClient = (id: number, jsonString: string, socket: net.Socket) => {
     try {
-      if (!socket || socket.destroyed || !socket.remoteAddress || !socket.remotePort) {
-        this.logger.error(`Client disconnected. ${socket.remoteAddress}:${socket.remotePort}`);
+      if (this.clients.size == 0) {
+        console.log('no client');
+        return;
       }
-
-      this.logger.debug(`[SEND] ${socket.remoteAddress}:${socket.remotePort}`);
-      console.log(`[TCP] Sending message: ${jsonString}`);
 
       const jsonBuffer = Buffer.from(jsonString);
       const header = Buffer.alloc(12);
@@ -121,22 +150,23 @@ export class TcpService {
 
       const packetBuffer = Buffer.concat([header, jsonBuffer]);
 
-      socket.write(packetBuffer, (err) => {
-        if (err) {
-          this.logger.debug(`Client disconnected. ${socket.remoteAddress}:${socket.remotePort}`);
-          this.logger.error(err);
-        }
-      });
+      for (const [clientId, client] of Array.from(this.clients)) {
+        client.write(packetBuffer, (err) => {
+          if (err) {
+            if (err.message === 'read ECONNRESET') {
+              this.logger.debug(`Client disconnected. ${client.remoteAddress}:${client.remotePort}`);
+              this.clients.delete(clientId);
+            } else {
+              this.logger.error(err);
+            }
+          }
+        });
 
-      socket.once('error', (err) => {
-        if (err.message === 'read ECONNRESET') {
-          this.logger.debug(`Client disconnected. ${socket.remoteAddress}:${socket.remotePort}`);
-        } else {
-          this.logger.error(err);
-        }
-      });
+        this.logger.debug(`[SEND] ${client.remoteAddress}:${client.remotePort}`);
+        // console.log(`[TCP] Sending message: ${jsonString}`);
+      }
     } catch (error) {
       console.error('Error in sendToClient:', error.message);
     }
-  }
+  };
 }
