@@ -25,11 +25,11 @@ export class TcpService {
 
   checkClientConnected() {
     setInterval(() => {
-      for (const [clientId, client] of this.clients) {
-        if (client) {
+      if (this.clients.size == 0) {
+        console.log('no cli');
+      } else {
+        for (const [clientId, client] of this.clients) {
           console.log(client.remoteAddress, client.remotePort);
-        } else {
-          console.log('no cli');
         }
       }
     }, 1000);
