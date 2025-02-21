@@ -11,6 +11,7 @@ import { GlobalExceptionsFilter } from './exception/global-exception.filter';
 import { TcpModule } from './tcp/tcp.module';
 import { PacketHandlerModule } from './packet-handler/packet-handler.module';
 import { SocketModule } from './socket/socket.module';
+import { CsvModule } from './csv/csv.module';
 
 @Module({
   imports: [
@@ -22,7 +23,8 @@ import { SocketModule } from './socket/socket.module';
     UdpModule,
     TcpModule,
     PacketHandlerModule,
-    SocketModule
+    SocketModule,
+    CsvModule
   ],
   controllers: [AppController],
   providers: [
