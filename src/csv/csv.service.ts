@@ -1,15 +1,20 @@
+import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Injectable, Logger } from '@nestjs/common';
 
 @Injectable()
 export class CsvService {
   private buffer: string[] = [];
   private readonly batchSize = 100; // 버퍼 저장 크기
+
   private writeStream: fs.WriteStream | null = null;
   private filePath: string | null = null;
   private currentDate: string;
   private logger = new Logger(CsvService.name);
+
+  csvCamData = [];
+  csvCarData = [];
+  customerId: number;
 
   constructor() {
     this.currentDate = this.getCurrentDate();
@@ -27,7 +32,7 @@ export class CsvService {
   }
 
   // 파일 초기화 및 스트림 생성
-  private initializeFile(id: number, name: string) {
+  private initializeFile(id: number, name: string, header: string) {
     this.logger.debug(`[Save] Start CSV`);
     try {
       const newDate = this.getCurrentDate();
@@ -42,24 +47,39 @@ export class CsvService {
 
       const now = new Date();
       now.setHours(now.getHours() + 9);
-      const timeStamp = now.toISOString().slice(11, 19).replace(/:/g, '-');
-      this.filePath = path.join(folderPath, `${id.toString()}_${name}_${timeStamp}.csv`);
+
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+
+      const timeStamp = `${hours}-${minutes}-${seconds}`;
+
+      this.filePath = path.join(
+        folderPath,
+        `${id.toString()}_${name}_${timeStamp}.csv`,
+      );
 
       this.writeStream = fs.createWriteStream(this.filePath, { flags: 'a' });
 
-      this.writeStream.write('timestamp,value1,value2\n'); // 헤더 추가
+      // this.writeStream.write('timestamp,value1,value2\n'); // 헤더 추가
+      this.writeStream.write(header + '\n'); // 헤더 추가
     } catch (error) {
       this.logger.error(`[Save] Init Error: ${error}`);
     }
   }
 
   /////////////////////////////////////////////////////////////////////
-  // 배치사이즈만큼씩 메모리에 모아서 파일 저장
+  // 배치사이즈만큼씩 메모리에 모아서 파일 저장 - 모든 데이터 보존이 필요한 경우
   /////////////////////////////////////////////////////////////////////
-  addAppendData(id: number, name: string, data: { value1: number; value2: number }) {
+  addAppendData(
+    id: number,
+    name: string,
+    data: { value1: number; value2: number },
+    header: string,
+  ) {
     try {
       if (!this.writeStream) {
-        this.initializeFile(id, name);
+        this.initializeFile(id, name, header);
       }
 
       const row = `${Date.now()},${data.value1},${data.value2}`;
@@ -104,20 +124,20 @@ export class CsvService {
   }
 
   /////////////////////////////////////////////////////////////////////
-  // 한번에 저장
+  // 한번에 저장 - 중간 데이터가 필요 없을 경우우
   /////////////////////////////////////////////////////////////////////
-  saveDataOnce(id: number, name: string, data: { value1: number; value2: number }[]) {
+  saveDataOnce(id: number, name: string, data: any, header: string) {
     if (this.writeStream) {
       this.writeStream.end();
       this.writeStream = null;
     }
-    this.initializeFile(id, name);
+    this.initializeFile(id, name, header);
 
     const now = new Date();
     now.setHours(now.getHours() + 9); // 한국 시간 적용
 
     try {
-      const rows = data.map((d) => `${Date.now()},${d.value1},${d.value2}`).join('\n') + '\n';
+      const rows = data.map((d) => d.join(',')).join('\n') + '\n';
 
       this.writeStream.write(rows, () => {
         this.writeStream.end(() => {
@@ -129,30 +149,36 @@ export class CsvService {
     }
   }
 
-  async loadRecentFile(id: number) {
+  async loadRecentFile(id: number, name: string = ''): Promise<string> {
     const dirPath = this.getFolderPath(); // CsvService 구조에 맞춤
 
     try {
       // 디렉토리 존재 여부 확인 후 없으면 생성
       if (!fs.existsSync(dirPath)) {
         this.logger.error(`[Load] Today no has files.`);
-        return null;
+        return '-1';
       }
 
       const files = fs.readdirSync(dirPath);
+      let fileNameStart = `${id}_`;
+      if (name && name.trim() != '') {
+        fileNameStart += name;
+      }
 
       // ID에 해당하는 파일 필터링 (예: id_1708500000000.csv)
       const matchedFiles = files
-        .filter((file) => file.startsWith(`${id}_`) && file.endsWith('.csv'))
+        .filter(
+          (file) => file.startsWith(fileNameStart) && file.endsWith('.csv'),
+        )
         .map((file) => ({
           name: file,
-          timestamp: Number(file.split('_')[1].replace('.csv', ''))
+          timestamp: file.split('_')[2].replace('.csv', ''),
         }))
-        .sort((a, b) => b.timestamp - a.timestamp); // 최신순 정렬
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp)); // 최신순 정렬
 
       if (matchedFiles.length === 0) {
         this.logger.error(`[Load] No files found for ID: ${id}`);
-        return null;
+        return '-2';
       }
 
       const recentFile = path.join(dirPath, matchedFiles[0].name);
@@ -163,7 +189,44 @@ export class CsvService {
     } catch (error) {
       console.log(error);
       this.logger.error(`[Load] Error loading file for ID ${id}: ${error}`);
-      return null;
+      return '-3';
     }
+  }
+
+  //////////////////////////////////////////////////////////
+  // 메모리에 저장
+  //////////////////////////////////////////////////////////
+  initCSVMemoryData(customerId: number) {
+    this.csvCamData = [];
+    this.csvCarData = [];
+    this.customerId = customerId;
+  }
+
+  saveCSVDataInMemory(type: 'cam' | 'car', data: any) {
+    if (type == 'cam') {
+      this.csvCamData = data;
+    } else if (type == 'car') {
+      this.csvCarData.push(data);
+    }
+  }
+
+  //////////////////////////////////////////////////////////
+  // 게임 종료 -> 메모리에서 csv로 저장
+  //////////////////////////////////////////////////////////
+  doneGame(customerId: number) {
+    if (this.customerId == 0 || this.customerId != customerId) return;
+
+    // this.saveDataOnce(
+    //   customerId,
+    //   'cam',
+    //   this.csvCamData,
+    //   'timestamp,ADJUSTING THE HAIR WHILE DRIVING,DISTRACTED BY OUTSIDE SCENES,DRINKING or EATING WHILE DRIVING,LOOKING BACK,NORMAL DRIVING,TALKING TO OTHER PERSON,TUNING THE RADIO WHILE DRIVING,using mobile phone',
+    // );
+    this.saveDataOnce(
+      customerId,
+      'car',
+      this.csvCarData,
+      'timestamp,carName,drivingDistance,drivingTime,idleTime,rpm,velocity,torque,gear,angle,acceleator,brake,hor,eor,dca,sound',
+    );
   }
 }
