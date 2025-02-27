@@ -229,4 +229,76 @@ export class CsvService {
       'timestamp,carName,drivingDistance,drivingTime,idleTime,rpm,velocity,torque,gear,angle,acceleator,brake,hor,eor,dca,sound',
     );
   }
+
+  mergeCsv(camCsv: Array<any>, carCsv: Array<any>) {
+    const startCam = new Date(camCsv[0][0]).getTime();
+    const startCar = new Date(carCsv[0][0]).getTime();
+    const mergeData = [];
+
+    if (startCam == startCar) {
+      for (let i = 0; i < Math.min(camCsv.length, carCsv.length); i++) {
+        mergeData[i] = [...carCsv[i], ...camCsv[i].slice(1)];
+      }
+      return mergeData;
+    }
+
+    const first = startCam > startCar ? 'car' : 'cam';
+
+    const getMergeIdx = (startingCsv, waitingCsv) => {
+      let mergeIdx = 1;
+
+      while (true) {
+        if (
+          new Date(waitingCsv[0][0]).getTime() >
+          new Date(startingCsv[mergeIdx][0]).getTime()
+        ) {
+          mergeIdx++;
+          continue;
+        }
+
+        if (
+          new Date(waitingCsv[0][0]).getTime() ==
+          new Date(startingCsv[mergeIdx][0]).getTime()
+        ) {
+          return mergeIdx;
+        }
+
+        if (
+          new Date(waitingCsv[0][0]).getTime() <
+          new Date(startingCsv[mergeIdx][0]).getTime()
+        ) {
+          return mergeIdx - 1;
+        }
+      }
+    };
+
+    const mergeIdx =
+      first == 'car'
+        ? getMergeIdx(carCsv, camCsv)
+        : getMergeIdx(camCsv, carCsv);
+
+    const emptyCarCsv = ['', 0, 0, 0, 0, 0, 0, 'P', 0, 0, 0, 0, 0, 0, 0];
+    const emptyCamCsv = [0, 0, 0, 0, 0, 0, 0, 0];
+
+    let i = 0;
+    while (true) {
+      if (i == carCsv.length - 1 || i == camCsv.length - 1) {
+        break;
+      }
+
+      if (i < mergeIdx) {
+        if (first == 'car') {
+          mergeData[i] = [...carCsv[i], ...emptyCamCsv];
+        } else {
+          mergeData[i] = [camCsv[i][0], ...emptyCarCsv, ...camCsv[i].slice(1)];
+        }
+      } else {
+        mergeData[i] = [...carCsv[i], ...camCsv[i].slice(1)];
+      }
+
+      i++;
+    }
+
+    return mergeData;
+  }
 }
