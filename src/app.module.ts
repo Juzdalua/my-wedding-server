@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Global, MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -13,6 +13,7 @@ import { PacketHandlerModule } from './packet-handler/packet-handler.module';
 import { SocketModule } from './socket/socket.module';
 import { CsvModule } from './csv/csv.module';
 
+@Global()
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,16 +28,11 @@ import { CsvModule } from './csv/csv.module';
     CsvModule
   ],
   controllers: [AppController],
-  providers: [
-    {
-      provide: APP_FILTER,
-      useClass: GlobalExceptionsFilter
-    },
-    AppService
-  ]
+  providers: [AppService]
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LoggerMiddleware).forRoutes('/api/*path');
+    // consumer.apply(LoggerMiddleware).forRoutes({ path: '*path', method: RequestMethod.ALL });
+
   }
 }

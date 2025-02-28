@@ -5,7 +5,12 @@ import { Request, Response, NextFunction } from 'express';
 export class LoggerMiddleware implements NestMiddleware {
   private readonly logger = new Logger('HTTP');
 
+  constructor(){
+    // this.logger.debug("debug")
+  }
+
   use(req: Request, res: Response, next: NextFunction): void {
+
     const { method, originalUrl } = req;
     const startTime = Date.now();
 
@@ -17,7 +22,10 @@ export class LoggerMiddleware implements NestMiddleware {
       const formattedStatusCode = this.formatStatusCode(statusCode);
       const formattedResponseTime = this.formatResponseTime(responseTime);
 
-      this.logger.log(`${method} ${originalUrl} ${formattedStatusCode} ${formattedResponseTime}`);
+      const clientIp = req.ip || req.socket.remoteAddress;
+      const clientPort = req.socket.remotePort;
+
+      this.logger.debug(`${method} ${originalUrl} ${formattedStatusCode} ${formattedResponseTime} - ${clientIp.replace('::ffff:', '')}:${clientPort}`);
     });
 
     next();

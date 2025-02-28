@@ -7,7 +7,8 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  getHello(): string {
+  getHello() {
+    console.log(123)
     throw new HttpException("error", HttpStatus.INTERNAL_SERVER_ERROR);
   }
 }

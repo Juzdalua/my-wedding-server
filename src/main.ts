@@ -9,6 +9,8 @@ import { AppModule } from './app.module';
 import { SocketService } from './socket/socket.service';
 import { TcpService } from './tcp/tcp.service';
 import { UdpService } from './udp/udp.service';
+import { GlobalExceptionsFilter } from './exception/global-exception.filter';
+import { LoggerMiddleware } from './utils/logger.middleware';
 
 Object.defineProperty(globalThis, 'crypto', {
   get: () => webcrypto,
@@ -29,8 +31,10 @@ async function bootstrap() {
   // Global Prefix
   app.setGlobalPrefix('api');
 
-  // Exception
-  // app.useGlobalFilters(new GlobalHttpExceptionFilter());
+  const loggerMiddleware = new LoggerMiddleware();
+  app.use(loggerMiddleware.use.bind(loggerMiddleware));
+
+  app.useGlobalFilters(new GlobalExceptionsFilter());
 
   // Global class-validator pipe
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }));
